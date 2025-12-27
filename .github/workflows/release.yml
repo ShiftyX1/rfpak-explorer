@@ -21,12 +21,12 @@ jobs:
             goarch: amd64
             ext: ""
           - os: windows
-            runner: ubuntu-latest
+            runner: windows-latest
             goos: windows
             goarch: amd64
             ext: ".exe"
           - os: darwin-amd64
-            runner: macos-latest
+            runner: macos-15
             goos: darwin
             goarch: amd64
             ext: ""
@@ -53,10 +53,6 @@ jobs:
           sudo apt-get install -y libgl1-mesa-dev xorg-dev
 
       - name: Build
-        env:
-          GOOS: ${{ matrix.goos }}
-          GOARCH: ${{ matrix.goarch }}
-          CGO_ENABLED: 1
         run: |
           go build -ldflags="-s -w -X main.version=${{ github.ref_name }}" \
             -o rfpak-explorer-${{ matrix.os }}${{ matrix.ext }} .
