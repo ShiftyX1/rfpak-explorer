@@ -1,0 +1,116 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build ${{ matrix.os }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      matrix:
+        include:
+          - os: linux
+            runner: ubuntu-latest
+            goos: linux
+            goarch: amd64
+            ext: ""
+          - os: windows
+            runner: ubuntu-latest
+            goos: windows
+            goarch: amd64
+            ext: ".exe"
+          - os: darwin-amd64
+            runner: macos-latest
+            goos: darwin
+            goarch: amd64
+            ext: ""
+          - os: darwin-arm64
+            runner: macos-latest
+            goos: darwin
+            goarch: arm64
+            ext: ""
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.21'
+          cache: true
+
+      - name: Install Linux dependencies
+        if: matrix.runner == 'ubuntu-latest'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgl1-mesa-dev xorg-dev
+
+      - name: Build
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: 1
+        run: |
+          go build -ldflags="-s -w -X main.version=${{ github.ref_name }}" \
+            -o rfpak-explorer-${{ matrix.os }}${{ matrix.ext }} .
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: rfpak-explorer-${{ matrix.os }}
+          path: rfpak-explorer-${{ matrix.os }}${{ matrix.ext }}
+
+  release:
+    name: Create Release
+    needs: build
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Prepare release assets
+        run: |
+          mkdir -p release
+          find artifacts -type f -name "rfpak-explorer-*" -exec mv {} release/ \;
+          chmod +x release/rfpak-explorer-linux release/rfpak-explorer-darwin-* || true
+          ls -la release/
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: RayFlow PAK Explorer ${{ github.ref_name }}
+          body: |
+            ## RayFlow PAK Explorer ${{ github.ref_name }}
+            
+            Cross-platform GUI tool for browsing and extracting RFPK archive files.
+            
+            ### Downloads
+            
+            | Platform | File |
+            |----------|------|
+            | Windows | `rfpak-explorer-windows.exe` |
+            | macOS (Intel) | `rfpak-explorer-darwin-amd64` |
+            | macOS (Apple Silicon) | `rfpak-explorer-darwin-arm64` |
+            | Linux | `rfpak-explorer-linux` |
+            
+            ### Installation
+            
+            **macOS/Linux:** Make the file executable with `chmod +x` before running.
+            
+            **Windows:** Just double-click to run.
+          files: release/*
+          draft: false
+          prerelease: false
